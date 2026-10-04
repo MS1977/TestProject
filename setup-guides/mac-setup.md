@@ -9,6 +9,9 @@
 
 各ツールの詳細はソース側にある。ここは横断的な使い方だけを置く。
 
+> **担当: 日々の道具の使い方。**構築手順は [full-build-guide.md](full-build-guide.md) と各分野の文書、
+> 今の版やパスは [dev-environment-map.md](dev-environment-map.md) を見る。
+
 🛑 **自作アプリの使い方はここには書かない。**仕様の正本は
 **`~/Documents/Developer/App/`** にまとめてある（二重に持つと必ず食い違う）。
 
@@ -64,6 +67,10 @@ cd ~/Documents/knowledge/scripts && ./run_digest_bg.sh --all --unload
 主張とその根拠」。**「根拠の提示なし」が並ぶ動画は取り込む価値が薄い**、という足切りに使える。
 
 実績: 8 件で 221,070 字 → 30,115 字（13.6%）。
+
+> ⚠️ **LLM に事実を持たせない。**12B は日付や数値を取り違える。
+> 数字はスクリプトで機械的に抽出し、LLM には言語化だけさせる。OCR にも生成モデルは使わない（4 節）。
+> この原則の正本はここ。
 
 > **ダイジェストを根拠に売買判断をしない。**
 > 12B なので数値の取り違えが起きる。食い違いには `※要確認` が付くが完全ではなく、
@@ -158,25 +165,17 @@ ocr-folder <フォルダ> --out 本.md --recursive
 
 **Mac がスリープすると切れる**（`caffeinate` は掛けていない）。
 
-### 認証でハマった経緯（再発時のため）
+### 401 や API キー認証で弾かれたら
 
-1. `ANTHROPIC_API_KEY` が `~/.zshrc` にあり、API キー認証に倒れて弾かれた
-   → コメントアウト（バックアップ `~/.zshrc.bak-20260815`）
-2. 次に OAuth トークンが **2026-06-15 に期限切れ**で 401
-   → API キーがあると OAuth が更新されないまま失効する。`claude auth logout` → `login` で解決
-3. **2026-09-01、平文のキーごと `.zshrc` から削除し、キー自体も失効させた。**
+原因と対処（`ANTHROPIC_API_KEY` との衝突、OAuth の失効、Keychain での確認方法）は
+[xcode-claude-setup.md](xcode-claude-setup.md) の 3 節。
+
+この Mac での経緯:
+
+1. `~/.zshrc` の `ANTHROPIC_API_KEY` をコメントアウト（バックアップ `~/.zshrc.bak-20260815`）
+2. 2026-06-15 に期限切れしていた OAuth を `claude auth logout` → `login` で再取得
+3. **2026-09-01 平文のキーごと `.zshrc` から削除し、キー自体も失効させた。**
    現在は該当行が無い（`grep ANTHROPIC_API_KEY ~/.zshrc` は何も返さない）
-
-> ⚠️ **`.zshrc` に API キーを平文で置かない。**認証が壊れる副作用に加えて、
-> `.zshrc` はバックアップにも iCloud にも入りうる。ここに秘密を置かない。
-
-反映されたかは Keychain の更新日時で分かる。
-
-```bash
-security find-generic-password -s "Claude Code-credentials" | grep mdat
-```
-
-`claude auth status` の `loggedIn: true` は**認証情報の存在を見ているだけ**で、有効性の保証にならない。
 
 ---
 
@@ -225,7 +224,7 @@ python3 ~/bin/malware-check.py --full # 現在の全項目
 LaunchAgent / LaunchDaemon・ログイン項目・構成プロファイル・kext・`/etc/hosts`・
 アドウェアの常用領域・Safari 拡張を毎日棚卸しし、**前回から変わった行だけ**を出す。
 変化がなければ 1 行で終わる。現在 16 件。詳細は
-<dev-environment-map.md> の 8 節。
+[dev-environment-map.md](dev-environment-map.md) の 8 節。
 
 > 🛑 **`--baseline` は本人だけが打つ。**「今の状態を正常として承認する」操作で、
 > Claude に打たせると検知した脅威をそのまま飲み込む。
@@ -248,3 +247,17 @@ LaunchAgent / LaunchDaemon・ログイン項目・構成プロファイル・kex
 | OCR の数字が本と違う | Tesseract は数字を外す。**元画像と突き合わせる**。他は信用してよい |
 | TradingView の MCP が繋がらない | ポート 9222 が開いていない。`~/bin/tv-claude.command --check` |
 | 常駐チェックが 🔴 を出し続ける | 仕様。中身を確かめて問題なければ `malware-check.py --baseline` |
+
+---
+
+## 関連ドキュメント
+
+各話題の正本は 1 か所だけ。他の文書には要点 1 行とリンクだけを置く。
+
+| ドキュメント | 担当（ここが正本） | ブラウザ版 |
+| --- | --- | --- |
+| [full-build-guide.md](full-build-guide.md) | 組む順番・関門・全体の検証・横断の早見表 | [開く](https://claude.ai/artifact/UQ2CnYtdPN3hYV7owG4wZQ) |
+| [dev-environment-map.md](dev-environment-map.md) | 今の状態（実測値・版・パス・常駐物・ディレクトリ） | [開く](https://claude.ai/artifact/2rFMQREMuY9xioDRpGfjkE) |
+| [eclipse-spring-setup.md](eclipse-spring-setup.md) | Java・Spring Boot・MyBatis・PostgreSQL | [開く](https://claude.ai/artifact/Y41hjzjgRYfb6UDYuTBs8J) |
+| [xcode-claude-setup.md](xcode-claude-setup.md) | Xcode・署名・ビルド成果物・Claude Code 認証・MCP | [開く](https://claude.ai/artifact/Xu6T46zjyfxDUZKq44aS83) |
+| [mac-setup.md](mac-setup.md) | 日々の道具の使い方（LLM 下処理・KB 検索・OCR・Remote Control・自動起動・常駐監視） | [開く](https://claude.ai/artifact/BG5zw9e2TpgDdwRU4NCV5f) |

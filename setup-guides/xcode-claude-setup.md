@@ -7,6 +7,10 @@ Mac で Xcode アプリを Claude Code と一緒に開発するための手順�
 
 検証環境: MacBook Pro (M1 Pro) / macOS 26.6 / Xcode 26.6 / Claude Code 2.1.237
 
+> **担当: Xcode・署名・ビルド成果物の置き場所・Claude Code の認証・MCP。**
+> `ANTHROPIC_API_KEY` との衝突、MCP の stdout の鉄則、iCloud 配下での codesign 失敗はこの文書が正本。
+> 今の版や登録済み MCP の一覧は [dev-environment-map.md](dev-environment-map.md) を見る。
+
 ---
 
 ## 全体像
@@ -49,14 +53,24 @@ brew --version     # 確認
 
 **Claude Code 本体と、自作 MCP サーバーの両方で必要。**
 
+この Mac では **nodebrew** で入れている（版を切り替えられるため）。
+
 ```bash
-brew install node
+brew install nodebrew
+nodebrew setup
+echo 'export PATH="$HOME/.nodebrew/current/bin:$PATH"' >> ~/.zshrc
+exec zsh -l
+nodebrew install-binary latest && nodebrew use latest
 node --version     # v22 以上を推奨
 npm --version
 ```
 
-> バージョンを切り替えたいなら `nodebrew` や `nvm` を使う手もある。
-> こだわりが無ければ Homebrew の Node で足りる。
+> 版の切り替えが要らなければ `brew install node` でも足りる。
+> ただし再構築するときは実機と同じ nodebrew にそろえる（差分を出さないため）。
+
+> ⚠️ `~/.nodebrew/current/bin` は **GUI から起動したプロセスの PATH に入らない。**
+> ログイン項目や `.command` から `claude` を呼ぶときは PATH を明示する
+> （[full-build-guide.md](full-build-guide.md) の 11 節）。
 
 ### 0-4. Claude Code
 
@@ -99,7 +113,7 @@ brew --version && node --version && npm --version && claude --version && git --v
 
 ## 1. Xcode を入れる
 
-App Store から Xcode をインストールする。**約 17GB** あるので回線に余裕のあるときに。
+App Store から Xcode をインストールする。**約 20GB** あるので回線に余裕のあるときに。
 
 インストール後、**必ずこれを実行する。**
 
@@ -178,6 +192,29 @@ security import \
 > **無料 Apple ID の証明書は 1 年有効。**7日で切れるという情報は古い。
 > 期限は `security find-certificate -c "Apple Development" -p | openssl x509 -noout -enddate` で確認できる。
 
+### 2-3. ⚠️ ソースが iCloud 配下なら、ビルド成果物は外に出す
+
+ソースを `~/Documents/Developer`（iCloud 同期対象）に置いている場合に踏む（2026-09-01 に実測）。
+
+iCloud は同期対象のファイルに `com.apple.FinderInfo` / `com.apple.fileprovider.*` を付ける。
+`codesign` はこれを撥ねる。
+
+```
+resource fork, Finder information, or similar detritus not allowed
+```
+
+ビルドのたびに付き直すので、`xattr -cr` で消しても再発する。
+
+**対処は 1 つだけ —— 成果物を iCloud の外に出す。**
+出力先は `~/Library/Developer/LocalBuilds/`。PageShot / PageCapture / AutoScroll の `build.sh` は全部そうしている。
+
+> 🛑 **「署名の直前に `xattr -cr` を掛ける」は効かない。**appex を署名してから外側の .app を
+> 署名するまでの間に iCloud が付け直す。一度この方法を採って、クリーンビルドで再発した。
+
+Xcode の GUI は既定の DerivedData（`~/Library` 配下）に出すので影響を受けない。
+踏むのは **`xcodebuild` を素で叩いたとき**（既定で `<プロジェクト>/build` に出る）と、
+成果物をリポジトリ内に置くスクリプト。
+
 ---
 
 ## 3. Claude Code を認証する
@@ -210,11 +247,15 @@ ANTHROPIC_API_KEY is set, so this session is using API-key auth
 env -u ANTHROPIC_API_KEY claude auth login
 ```
 
-恒久的に外すなら `~/.zshrc` の該当行をコメントアウトする（**値は先に控える**）。
+恒久的に外すなら `~/.zshrc` から該当行を消す。
 
 ```bash
 grep -n ANTHROPIC_API_KEY ~/.zshrc
 ```
+
+> ⚠️ **`.zshrc` に API キーを平文で置かない。**認証が壊れる副作用に加えて、
+> `.zshrc` はバックアップにも iCloud にも入りうる。キーが要るなら Keychain に置く。
+> この Mac では 2026-09-01 に該当行を削除し、キー自体も失効させた。
 
 ### ⚠️ さらに: API キーがあると OAuth が失効する
 
@@ -249,7 +290,7 @@ Xcode 26.3 以降には Apple 純正の MCP サーバーが入っている。
 これを登録すると、Claude Code から Xcode を直接操作できる。
 
 ```bash
-claude mcp add --transport stdio --scope user xcode -- xcrun mcpbridge
+claude mcp add --scope user xcode -- xcrun mcpbridge
 ```
 
 確認:
@@ -322,8 +363,10 @@ Xcode 純正サーバーはその一例で、他にも追加できるし、自�
 **stdio（ローカルのコマンドを起動する）**
 
 ```bash
-claude mcp add --transport stdio --scope user <名前> -- <コマンド> [引数...]
+claude mcp add --scope user <名前> -- <コマンド> [引数...]
 ```
+
+`--transport` を省略すると stdio になる。この文書では stdio のときは付けない書き方にそろえている。
 
 ```bash
 # 例: Node で書いた自作サーバー
@@ -393,7 +436,7 @@ claude mcp add-json <名前> '{"command":"node","args":["/path/server.js"]}'
 #### 1. 用意する
 
 ```bash
-mkdir -p ~/Developer/mcp-hello && cd ~/Developer/mcp-hello
+mkdir -p ~/Documents/Developer/mcp-hello && cd ~/Documents/Developer/mcp-hello
 npm init -y
 npm install @modelcontextprotocol/sdk zod
 ```
@@ -461,7 +504,7 @@ console.error("hello MCP server started");   // ログは stderr へ
 #### 3. 登録して確認
 
 ```bash
-claude mcp add --scope user hello -- node /Users/<名前>/Developer/mcp-hello/server.js
+claude mcp add --scope user hello -- node /Users/<名前>/Documents/Developer/mcp-hello/server.js
 claude mcp list        # → hello: ... - ✔ Connected
 ```
 
@@ -656,10 +699,12 @@ Config/Local.xcconfig
 | 症状 | 原因 | 対処 |
 | --- | --- | --- |
 | `command not found: claude` | npm のグローバル bin が PATH に無い | `npm bin -g` を確認し `~/.zshrc` に追加 → `rehash` |
-| `command not found: node` | Node 未導入 | `brew install node` |
+| `command not found: node` | Node 未導入、または nodebrew の PATH 未設定 | 0-3 節の手順で入れ、`~/.zshrc` に PATH を追加 |
 | コミットで作者エラー | git の初期設定漏れ | `git config --global user.name` / `user.email` |
 | `xcodebuild requires Xcode` | xcode-select が CLT を指している | `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` |
 | `0 valid identities found` | WWDR 中間 CA (G3) が古い | Xcode 同梱の `AppleWWDRCA-2030.cer` を import |
+| codesign が `detritus not allowed` | 成果物が iCloud 配下にある | 出力先を `~/Library/Developer/LocalBuilds/` へ（2-3 節） |
+| MCP サーバーが応答しない（自作） | stdout に `console.log` を書いた | ログは `console.error` へ |
 | MCP が `Connection closed` | Xcode が起動していない | Xcode → プロジェクト → Claude Code の順で起動 |
 | Remote Control が API キーを検出 | `ANTHROPIC_API_KEY` が設定済み | `env -u ANTHROPIC_API_KEY` か `.zshrc` から外す |
 | 認証が 401 | OAuth トークン失効 | `claude auth logout && claude auth login` |
@@ -749,3 +794,17 @@ pbxproj を YAML や Swift から生成する道具で、以前は定番だっ�
 
 モジュールが 10 以上あり依存が複雑、あるいは CI のビルドキャッシュが要る、
 という段階になってから検討すればよい。
+
+---
+
+## 関連ドキュメント
+
+各話題の正本は 1 か所だけ。他の文書には要点 1 行とリンクだけを置く。
+
+| ドキュメント | 担当（ここが正本） | ブラウザ版 |
+| --- | --- | --- |
+| [full-build-guide.md](full-build-guide.md) | 組む順番・関門・全体の検証・横断の早見表 | [開く](https://claude.ai/artifact/UQ2CnYtdPN3hYV7owG4wZQ) |
+| [dev-environment-map.md](dev-environment-map.md) | 今の状態（実測値・版・パス・常駐物・ディレクトリ） | [開く](https://claude.ai/artifact/2rFMQREMuY9xioDRpGfjkE) |
+| [eclipse-spring-setup.md](eclipse-spring-setup.md) | Java・Spring Boot・MyBatis・PostgreSQL | [開く](https://claude.ai/artifact/Y41hjzjgRYfb6UDYuTBs8J) |
+| [xcode-claude-setup.md](xcode-claude-setup.md) | Xcode・署名・ビルド成果物・Claude Code 認証・MCP | [開く](https://claude.ai/artifact/Xu6T46zjyfxDUZKq44aS83) |
+| [mac-setup.md](mac-setup.md) | 日々の道具の使い方（LLM 下処理・KB 検索・OCR・Remote Control・自動起動・常駐監視） | [開く](https://claude.ai/artifact/BG5zw9e2TpgDdwRU4NCV5f) |

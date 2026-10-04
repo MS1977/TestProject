@@ -102,7 +102,7 @@ nodebrew install-binary latest && nodebrew use latest
 
 > ⚠️ **`~/.nodebrew/current/bin` は GUI から起動したプロセスの PATH に入らない。**
 > ログイン項目や launchd から `claude` を呼ぶスクリプトでは、PATH を明示すること
-> （<dev-environment-map.md> の 8 節を参照）。
+> （11 節）。
 
 ### 1b. Python — **Homebrew 一本**
 
@@ -111,10 +111,8 @@ brew install python@3.14
 pip3 install numpy pandas matplotlib yfinance pillow requests
 ```
 
-> ⚠️ **pyenv は入れない。**2026-08-25 に一度入れて廃止した。
-> 版が1つしか要らないなら shims が挟まるだけ損で、しかも
-> **ライブラリの揃った Homebrew 側を隠してしまう**（実際に隠れていた）。
-> プロジェクトごとに版を変える必要が出てから入れればよい。
+> ⚠️ **pyenv は入れない。**Homebrew 側を隠してしまうため 2026-08-25 に廃止した。
+> 経緯は [dev-environment-map.md](dev-environment-map.md) の 2 節。
 
 **PATH の順序に注意。**`/opt/homebrew/bin` を
 `/Library/Developer/CommandLineTools/usr/bin` より**前**に置くこと。
@@ -180,10 +178,9 @@ PGPASSWORD=sandbox psql -h localhost -U sandbox -d sandbox -c "SELECT current_us
 ```
 
 > ⚠️ **付けないと UNIX ソケット経由**になり、アプリが使う TCP 経路の確認にならない。
-> 「psql では繋がるのにアプリからは Connection refused」はこれが原因。
 
-GUI が要るなら **pgAdmin 4** を手動で入れる。接続値は
-<dev-environment-map.md> の 4 節にある。
+GUI が要るなら **pgAdmin 4** を手動で入れる。接続値・`trust` の注意・運用コマンドは
+[eclipse-spring-setup.md](eclipse-spring-setup.md) の 2 節。
 
 ---
 
@@ -191,19 +188,17 @@ GUI が要るなら **pgAdmin 4** を手動で入れる。接続値は
 
 ```bash
 npm install -g @anthropic-ai/claude-code
-claude login
+claude auth login
 ```
 
 > ⚠️ **`ANTHROPIC_API_KEY` が環境変数にあると OAuth 認証と衝突する。**
-> `~/.zshrc` に残っていないか確認すること。あればコメントアウトする。
-
-詳細は <xcode-claude-setup.md> の 3 節。
+> `~/.zshrc` に残っていないか確認し、あれば消す。詳細は [xcode-claude-setup.md](xcode-claude-setup.md) の 3 節。
 
 ---
 
 ## 4〜6. Xcode / 署名 / MCP
 
-**この 3 つは <xcode-claude-setup.md> に全部書いてある。**
+**この 3 つは [xcode-claude-setup.md](xcode-claude-setup.md) に全部書いてある。**
 ここでは順序と関門だけ示す。
 
 ```mermaid
@@ -230,9 +225,8 @@ MCP は user スコープ（`~/.claude.json`）に登録する。
 claude mcp add --scope user xcode -- xcrun mcpbridge
 ```
 
-> **自作 MCP サーバーの鉄則：標準出力は JSON-RPC 専用。**
-> `console.log` を書くとプロトコルが壊れる。ログは `console.error` へ。
-> 動くサンプルが `~/Documents/Developer/mcp-hello/server.js` にある。
+自作 MCP サーバーの書き方と注意点は xcode-claude-setup.md の 4-2 節。
+動くサンプルが `~/Documents/Developer/mcp-hello/server.js` にある。
 
 ---
 
@@ -258,7 +252,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
 プロジェクト生成からバージョンの罠まで、詳細は
-<eclipse-spring-setup.md>。
+[eclipse-spring-setup.md](eclipse-spring-setup.md)。
 
 ---
 
@@ -272,16 +266,10 @@ cd ~/Documents/Developer/SafariAutoScroll && ./build.sh && ./install.sh
 cd ~/Documents/Developer/PageCapture      && ./build.sh && ./install.sh
 ```
 
-> 🛑 **ソースは iCloud 配下（`~/Documents/Developer`）にあるので、
-> ビルド成果物を iCloud の中に出してはいけない。**
-> iCloud が `com.apple.FinderInfo` を付け、**codesign が
-> `resource fork, Finder information, or similar detritus not allowed` で失敗する。**
-> **回避策は 3 本とも同じ —— 出力先ごと `~/Library/Developer/LocalBuilds/` に逃がす。**
-> 各 `build.sh` がそうしている。
-> ⚠️ **「署名の直前に `xattr -cr` を掛ける」では直らない。**appex を署名してから
-> 外側の `.app` を署名するまでの間に iCloud が付け直すため、クリーンビルドで再発する
-> （2026-09-01 に一度この方法を採って失敗した）。
-> **`xcodebuild` を素で叩くと既定で `<プロジェクト>/build` に出るため、必ず踏む。**
+> 🛑 **ソースが iCloud 配下なので、成果物は iCloud の外（`~/Library/Developer/LocalBuilds/`）に出す。**
+> 中に出すと codesign が `detritus not allowed` で落ちる。各 `build.sh` は対応済み。
+> `xcodebuild` を素で叩くと必ず踏む。経緯と、効かなかった回避策は
+> [xcode-claude-setup.md](xcode-claude-setup.md) の 2-3 節。
 
 | アプリ | 用途 | 要る権限 |
 | --- | --- | --- |
@@ -310,9 +298,8 @@ cd ~/Documents/Developer/PageCapture      && ./build.sh && ./install.sh
 
 サーバーを `http://localhost:1234/v1` で起動しておく（OpenAI 互換）。
 
-> ⚠️ **LLM に事実を持たせない。**12B は日付や数値を取り違える。
-> 数値はスクリプトで機械的に抽出し、LLM には言語化だけさせる。
-> **OCR にも使わない**（意味から補完してしまう）。
+> ⚠️ **LLM に事実を持たせない**（数値の取り違えが起きる）。使い方と原則は
+> [mac-setup.md](mac-setup.md) の 2 節。
 
 ---
 
@@ -398,6 +385,7 @@ python3 ~/bin/malware-check.py              # 以後は差分が出る
 
 > 🛑 **`--baseline` は本人だけが打つ。**「今の状態を正常として承認する」操作なので、
 > 🔴 が出ている状態で打つと、それを正常として飲み込んでしまう。
+> 日々の使い方は [mac-setup.md](mac-setup.md) の 7 節、仕組みは [dev-environment-map.md](dev-environment-map.md) の 8 節。
 
 ---
 
@@ -427,32 +415,38 @@ Java は PATH に無いのが正常。確認するなら明示する。
 
 ## つまずいたときの早見表
 
-**症状から原因を引く。**個別の詳細は各ガイドへ。
+**症状から原因を引く。**文書をまたぐ早見表はここに集約している。各文書の表はその分野の行だけ。
 
-| 症状 | 原因 | 対処 |
-| --- | --- | --- |
-| `~/bin` に置いたのに `command not found` | zsh のコマンドハッシュ | **`rehash`** |
-| `python3` が 3.9.6 になる | PATH で CLT が Homebrew より前 | `.zshrc` の PATH 順序を直す |
-| `java: Unable to locate` | JDK は Eclipse の中だけ | `JAVA_HOME` を明示 |
-| `mvn: command not found` | Maven も同梱のみ | **正常。**`./mvnw` を使う |
-| `psql: command not found` | keg-only で PATH 未設定 | `~/.zshrc` に追記 → `rehash` |
-| psql は繋がるがアプリは `Connection refused` | UNIX ソケット経由で確認していた | **`-h localhost`** |
-| 急に DB に繋がらない | サービス停止 | `brew services list` → `restart` |
-| Eclipse が「開いていません」 | 公証されていない | `sudo xattr -dr com.apple.quarantine` |
-| `0 valid identities found` | 中間 CA の期限切れ | WWDR G3 を入れ直す |
-| Claude Code の認証が通らない | `ANTHROPIC_API_KEY` と衝突 | `~/.zshrc` から外す |
-| MCP サーバーが応答しない | stdout に `console.log` | `console.error` に変える |
-| 自作アプリの権限が外れた | 署名と場所に紐づく | 設定でチェックを外して入れ直す |
-| 定期実行が Documents を読めない | **TCC** | Claude のスケジュールタスク側へ |
-| ログイン項目から `claude` が起動しない | GUI の PATH が違う | `.command` 内で PATH を明示 |
+| 症状 | 原因 | 対処 | 詳細 |
+| --- | --- | --- | --- |
+| `~/bin` に置いたのに `command not found` | zsh のコマンドハッシュ | **`rehash`** | 0 節 |
+| `python3` が 3.9.6 になる | PATH で CLT が Homebrew より前 | `.zshrc` の PATH 順序を直す | [map](dev-environment-map.md) 2 節 |
+| `java: Unable to locate` | JDK は Eclipse の中だけ | `JAVA_HOME` を明示 | [eclipse](eclipse-spring-setup.md) 1 節 |
+| `mvn: command not found` | Maven も同梱のみ | **正常。**`./mvnw` を使う | [eclipse](eclipse-spring-setup.md) 5 節 |
+| `psql: command not found` | keg-only で PATH 未設定 | `~/.zshrc` に追記 → `rehash` | [eclipse](eclipse-spring-setup.md) 2 節 |
+| psql は繋がるがアプリは `Connection refused` | UNIX ソケット経由で確認していた | **`-h localhost`** | [eclipse](eclipse-spring-setup.md) 2 節 |
+| 急に DB に繋がらない | サービス停止 | `brew services list` → `restart` | [eclipse](eclipse-spring-setup.md) 2 節 |
+| Eclipse が「開いていません」 | 公証されていない | `sudo xattr -dr com.apple.quarantine` | [eclipse](eclipse-spring-setup.md) 1 節 |
+| `0 valid identities found` | 中間 CA の期限切れ | WWDR G3 を入れ直す | [xcode](xcode-claude-setup.md) 2 節 |
+| codesign が `detritus not allowed` | 成果物が iCloud 配下 | 出力先を `~/Library/Developer/LocalBuilds/` へ | [xcode](xcode-claude-setup.md) 2-3 節 |
+| Claude Code の認証が通らない / 401 | `ANTHROPIC_API_KEY` と衝突、OAuth 失効 | `~/.zshrc` から外す → `claude auth logout && claude auth login` | [xcode](xcode-claude-setup.md) 3 節 |
+| MCP が `Connection closed` | Xcode が起動していない | Xcode → プロジェクト → Claude Code の順 | [xcode](xcode-claude-setup.md) 4 節 |
+| 自作 MCP サーバーが応答しない | stdout に `console.log` | `console.error` に変える | [xcode](xcode-claude-setup.md) 4-2 節 |
+| 自作アプリの権限が外れた | 署名と場所に紐づく | 設定でチェックを外して入れ直す | 8 節 |
+| 定期実行が Documents を読めない | **TCC** | Claude のスケジュールタスク側へ | 11 節 |
+| ログイン項目から `claude` が起動しない | GUI の PATH が違う | `.command` 内で PATH を明示 | 11 節 |
+| Docker が動かない | 常駐させていない | 必要なときだけ起動する | [map](dev-environment-map.md) 8 節 |
 
 ---
 
-## 関連
+## 関連ドキュメント
 
-| ドキュメント | 内容 |
-| --- | --- |
-| <dev-environment-map.md> | **今どうなっているか**の地図（実測値・図 7 枚） |
-| <xcode-claude-setup.md> | Xcode・署名・MCP の詳細 |
-| <eclipse-spring-setup.md> | Java・Spring・PostgreSQL の詳細 |
-| <mac-setup.md> | 日々の道具の**使い方** |
+各話題の正本は 1 か所だけ。他の文書には要点 1 行とリンクだけを置く。
+
+| ドキュメント | 担当（ここが正本） | ブラウザ版 |
+| --- | --- | --- |
+| [full-build-guide.md](full-build-guide.md) | 組む順番・関門・全体の検証・横断の早見表 | [開く](https://claude.ai/artifact/UQ2CnYtdPN3hYV7owG4wZQ) |
+| [dev-environment-map.md](dev-environment-map.md) | 今の状態（実測値・版・パス・常駐物・ディレクトリ） | [開く](https://claude.ai/artifact/2rFMQREMuY9xioDRpGfjkE) |
+| [eclipse-spring-setup.md](eclipse-spring-setup.md) | Java・Spring Boot・MyBatis・PostgreSQL | [開く](https://claude.ai/artifact/Y41hjzjgRYfb6UDYuTBs8J) |
+| [xcode-claude-setup.md](xcode-claude-setup.md) | Xcode・署名・ビルド成果物・Claude Code 認証・MCP | [開く](https://claude.ai/artifact/Xu6T46zjyfxDUZKq44aS83) |
+| [mac-setup.md](mac-setup.md) | 日々の道具の使い方（LLM 下処理・KB 検索・OCR・Remote Control・自動起動・常駐監視） | [開く](https://claude.ai/artifact/BG5zw9e2TpgDdwRU4NCV5f) |

@@ -5,6 +5,10 @@
 検証環境: MacBook Pro (M1 Pro / 16GB) / macOS 26.6 /
 Pleiades All in One Eclipse 2026-06 / PostgreSQL 17.11
 
+> **担当: Java・Spring Boot・MyBatis・PostgreSQL の構築と知見。**
+> PostgreSQL の導入・接続確認・pgAdmin・`pg_hba.conf` はこの文書が正本。
+> 今の版や接続先の実測値は [dev-environment-map.md](dev-environment-map.md) を見る。
+
 ---
 
 ## 到達点
@@ -18,7 +22,7 @@ Spring Boot 4.0.8 + MyBatis 4.0.1 + PostgreSQL 17.11
 
 | 対象 | 場所・値 |
 | --- | --- |
-| プロジェクト | `~/Developer/spring-mybatis-sandbox` |
+| プロジェクト | `~/Documents/Developer/spring-mybatis-sandbox`（2026-09-01 に `~/Developer` から移動） |
 | Eclipse | `/Applications/Eclipse_2026-06.app`（Pleiades） |
 | PostgreSQL | `/opt/homebrew/var/postgresql@17`（Homebrew・自動起動） |
 | DB / ユーザー | `sandbox` / `sandbox`（パスワード `sandbox`） |
@@ -165,8 +169,9 @@ brew services stop postgresql@17      # 停止
 
 テーブル作成やロール管理をするなら、管理者ロールで入る。
 
-| User | `shibuyamorishige`（＝ macOS のユーザー名） |
+| 項目 | 値 |
 | --- | --- |
+| User | `shibuyamorishige`（＝ macOS のユーザー名） |
 | Database | `postgres` |
 | Password | 空でよい（下記） |
 
@@ -266,7 +271,7 @@ Non-resolvable parent POM: org.springframework.boot:spring-boot-starter-parent:.
 回線の良いときにまとめて取る。**約 120MB。**
 
 ```bash
-cd ~/Developer/spring-mybatis-sandbox
+cd ~/Documents/Developer/spring-mybatis-sandbox
 export JAVA_HOME=/Applications/Eclipse_2026-06.app/Contents/java/21
 export PATH="$JAVA_HOME/bin:$PATH"
 ./mvnw -B test
@@ -326,7 +331,7 @@ management.endpoint.health.show-details=always
 
 1. **File → Import…**
 2. **Maven → Existing Maven Projects**
-3. Root Directory に `/Users/<名前>/Developer/spring-mybatis-sandbox`
+3. Root Directory に `/Users/<名前>/Documents/Developer/spring-mybatis-sandbox`
 4. `pom.xml` にチェックして **Finish**
 
 依存が取得済みなら数十秒で終わる。`.project` `.classpath` は m2e が生成する。
@@ -416,7 +421,7 @@ application.properties      mybatis.mapper-locations=classpath:mapper/*.xml
 | 列 | 型 | 注意 |
 | --- | --- | --- |
 | `id` | `numeric(14,0)` | `long` の範囲に収まる（10^14 < 9.2×10^18）ので `Long` で受ける。採番は DB 側 |
-| `code` | **`char(4)`** | **固定長。空白で右詰めされる。**`"AB"` を入れて読むと `"AB "` |
+| `code` | **`char(4)`** | **固定長。空白で右詰めされる。**`"AB"` を入れて読むと `"AB  "` |
 | `image` | `bytea` | `byte[]`。一覧の SELECT では取得しない（重いため） |
 | `insert_date` | `timestamptz` | `OffsetDateTime`。値は SQL 側の `now()` |
 
@@ -532,7 +537,7 @@ curl -X POST http://localhost:8080/api/sandbox \
 
 **実測値。**2 点とも仕様どおりの挙動。
 
-- `code` が `"AB "` ＝ `char(4)` の空白詰め
+- `code` が `"AB  "` ＝ `char(4)` の空白詰め
 - `id` が 1 でなく 8 ＝ テストで消費したシーケンスが戻らないため
 
 | メソッド | パス | 結果 |
@@ -574,3 +579,17 @@ curl -X POST http://localhost:8080/api/sandbox \
 - 入力検証（`@Valid` / Bean Validation は未導入）
 - 例外ハンドリング（`@RestControllerAdvice` でエラー応答を統一する）
 - `.gitignore` に Eclipse メタデータ（`.project` 等）を入れるかの判断
+
+---
+
+## 関連ドキュメント
+
+各話題の正本は 1 か所だけ。他の文書には要点 1 行とリンクだけを置く。
+
+| ドキュメント | 担当（ここが正本） | ブラウザ版 |
+| --- | --- | --- |
+| [full-build-guide.md](full-build-guide.md) | 組む順番・関門・全体の検証・横断の早見表 | [開く](https://claude.ai/artifact/UQ2CnYtdPN3hYV7owG4wZQ) |
+| [dev-environment-map.md](dev-environment-map.md) | 今の状態（実測値・版・パス・常駐物・ディレクトリ） | [開く](https://claude.ai/artifact/2rFMQREMuY9xioDRpGfjkE) |
+| [eclipse-spring-setup.md](eclipse-spring-setup.md) | Java・Spring Boot・MyBatis・PostgreSQL | [開く](https://claude.ai/artifact/Y41hjzjgRYfb6UDYuTBs8J) |
+| [xcode-claude-setup.md](xcode-claude-setup.md) | Xcode・署名・ビルド成果物・Claude Code 認証・MCP | [開く](https://claude.ai/artifact/Xu6T46zjyfxDUZKq44aS83) |
+| [mac-setup.md](mac-setup.md) | 日々の道具の使い方（LLM 下処理・KB 検索・OCR・Remote Control・自動起動・常駐監視） | [開く](https://claude.ai/artifact/BG5zw9e2TpgDdwRU4NCV5f) |

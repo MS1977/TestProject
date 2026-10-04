@@ -3,8 +3,12 @@
 **2026-09-01 時点の実測。**すべて実機で確認した値で、推測は入っていない。
 
 手順書ではなく**現況の地図**。「何が入っていて、どれがどれを使っているか」を引くためのもの。
-構築手順は <mac-setup.md> / <xcode-claude-setup.md> /
-<eclipse-spring-setup.md> にある。
+組む順番は [full-build-guide.md](full-build-guide.md)、各分野の手順は
+[xcode-claude-setup.md](xcode-claude-setup.md) / [eclipse-spring-setup.md](eclipse-spring-setup.md)、
+日々の使い方は [mac-setup.md](mac-setup.md) にある。
+
+> **担当: 今の状態（実測値・版・パス・接続先・常駐物・ディレクトリ）。**
+> 手順と知見はここに書かず、各文書へリンクする。ただし pyenv の廃止と常駐監視の仕組みの経緯はこの文書が正本。
 
 | 項目 | 値 |
 | --- | --- |
@@ -207,18 +211,10 @@ flowchart LR
 | DB | `postgres`, **`sandbox`** |
 | ロール | `shibuyamorishige`（管理者）, `sandbox` |
 | GUI | **pgAdmin 4 (9.17)** |
+| pg_hba.conf（ローカル） | **`trust`**（パスワード不要） |
 
-> ⚠️ **ローカル接続は `trust`（パスワード不要）。**
-> `pg_hba.conf` が `127.0.0.1/32 trust` なので、**この Mac のどのプロセスも
-> 管理者ロールを含む任意のユーザーとして接続できる。**開発機なので実害は小さいが把握しておく。
-
-### pgAdmin の接続値
-
-| 項目 | 値 |
-| --- | --- |
-| Server Name | 任意の**表示名**（接続先ではない。空だとエラーになるだけ） |
-| Host / Port | `localhost` / `5432` |
-| Database / User / Password | `sandbox` / `sandbox` / `sandbox` |
+導入手順、pgAdmin の接続値、`trust` の意味と締め方は
+[eclipse-spring-setup.md](eclipse-spring-setup.md) の 2 節。
 
 ---
 
@@ -257,8 +253,7 @@ flowchart LR
 | **hello** | stdio | `node ~/Documents/Developer/mcp-hello/server.js` | ✔ 接続（自作サンプル） |
 | Google Drive | http | `drivemcp.googleapis.com` | ✔ 接続 |
 
-> **stdio サーバーの鉄則：標準出力は JSON-RPC 専用。**
-> `console.log` を書くとプロトコルが壊れる。ログは必ず `console.error`（stderr）へ。
+自作サーバーの注意点（stdout は JSON-RPC 専用、など）は [xcode-claude-setup.md](xcode-claude-setup.md) の 4-2 節。
 
 TradingView は **ログイン時に自動でデバッグポート付きで起動**する
 （`~/bin/tv-claude.command` がログイン項目に登録済み）。
@@ -298,16 +293,9 @@ flowchart LR
 
 > **「ビルドが通った」は「動く」ではない。**権限が絡むので実挙動は別に確認する。
 
-> 🛑 **ソースを iCloud（`~/Documents/Developer`）に置いたことの代償（2026-09-01 に実測）。**
-> iCloud は同期対象のファイルに `com.apple.FinderInfo` / `com.apple.fileprovider.*` を付ける。
-> **codesign はこれを撥ねる** —— `resource fork, Finder information, or similar detritus not allowed`。
-> ビルドのたびに付き直すので、`xattr -cr` で消しても再発する。
-> ⭐ **対処は 1 つだけ —— 成果物を iCloud の外に出す**
-> （`~/Library/Developer/LocalBuilds/`。PageShot / PageCapture / AutoScroll の `build.sh` が全部これ）。
-> 🛑 **「署名の直前に `xattr -cr`」は効かない。**appex を署名してから外側の `.app` を
-> 署名するまでの間に iCloud が付け直す。**一度この方法を採って、クリーンビルドで再発した。**
-> **Xcode の GUI は既定の DerivedData（`~/Library` 配下）に出すので影響を受けない。**
-> 踏むのは `xcodebuild` を素で叩いたときと、成果物をリポジトリ内に置くスクリプト。
+> 🛑 **ソースが iCloud 配下（`~/Documents/Developer`）なので、成果物は `~/Library/Developer/LocalBuilds/` に出している。**
+> iCloud 内に出すと codesign が `detritus not allowed` で落ちる。経緯と対処は
+> [xcode-claude-setup.md](xcode-claude-setup.md) の 2-3 節。
 
 ---
 
@@ -322,9 +310,7 @@ flowchart LR
 
 API は `http://localhost:1234/v1`（OpenAI 互換）。**通信は端末内で完結する。**
 
-> ⚠️ **LLM に事実を持たせない。**12B は日付や数値を取り違える。
-> 数字はスクリプトで機械的に抽出し、LLM には言語化だけさせる。
-> OCR も生成モデルではなく Vision / Tesseract を使う（意味から補完させない）。
+使い方と「LLM に事実を持たせない」原則は [mac-setup.md](mac-setup.md) の 2 節。
 
 ---
 
@@ -350,6 +336,7 @@ flowchart TB
 | LaunchAgent | `homebrew.mxcl.postgresql@17`（他は Dropbox / Google / Steam / MEGA / openclaw の更新系） |
 | ログイン項目 | **`tv-claude.command`** |
 | 定期実行 | **Claude のスケジュールタスク 10 件**（`kb-daily.sh` / `daily-security-check` / 投資スキャン各種） |
+| Docker | **常駐させていない。**必要なときだけ起動する |
 
 > ⚠️ **launchd から `~/Documents` は読み書きできない**（TCC）。
 > だから KB の定期処理は launchd ではなく Claude のスケジュールタスクに置いている。
@@ -426,18 +413,7 @@ python3 ~/bin/malware-check.py --baseline   # ⚠️ 本人だけが打つ
 
 ## 10. 迷ったときの早見表
 
-| 症状 | まず疑う |
-| --- | --- |
-| `python3` で pandas が無い | 2026-08-25 に Homebrew へ一本化済み。`command -v python3` を確認 |
-| `java: Unable to locate` | JDK は Eclipse の中だけ。`JAVA_HOME` を明示 |
-| `mvn: command not found` | 正常。`./mvnw` を使う |
-| psql は繋がるがアプリは `Connection refused` | **`-h localhost` で TCP を確認** |
-| 急に DB に繋がらない | `brew services list` で `started` か確認 |
-| `~/bin` に置いたのに `command not found` | **`rehash`**（zsh がコマンド位置をハッシュしている） |
-| MCP サーバーが応答しない | stdout に `console.log` を書いていないか |
-| 自作アプリの権限が外れた | 署名と場所に紐づく。設定でチェックを外して入れ直す |
-| launchd のジョブが Documents を読めない | **TCC。**Claude のスケジュールタスク側に置く |
-| Docker が動かない | **常駐していない。**必要なときだけ起動する |
+症状から原因を引く表は [full-build-guide.md](full-build-guide.md) の「つまずいたときの早見表」にまとめた。
 
 ---
 
@@ -453,3 +429,17 @@ python3 ~/bin/malware-check.py --baseline   # ⚠️ 本人だけが打つ
 | MCP の追加・削除 | 5（MCP） |
 | Xcode の版・署名証明書 | 6（Xcode）— 証明書の期限は **2027-08-15** |
 | LM Studio のモデル | 7（LLM） |
+
+---
+
+## 関連ドキュメント
+
+各話題の正本は 1 か所だけ。他の文書には要点 1 行とリンクだけを置く。
+
+| ドキュメント | 担当（ここが正本） | ブラウザ版 |
+| --- | --- | --- |
+| [full-build-guide.md](full-build-guide.md) | 組む順番・関門・全体の検証・横断の早見表 | [開く](https://claude.ai/artifact/UQ2CnYtdPN3hYV7owG4wZQ) |
+| [dev-environment-map.md](dev-environment-map.md) | 今の状態（実測値・版・パス・常駐物・ディレクトリ） | [開く](https://claude.ai/artifact/2rFMQREMuY9xioDRpGfjkE) |
+| [eclipse-spring-setup.md](eclipse-spring-setup.md) | Java・Spring Boot・MyBatis・PostgreSQL | [開く](https://claude.ai/artifact/Y41hjzjgRYfb6UDYuTBs8J) |
+| [xcode-claude-setup.md](xcode-claude-setup.md) | Xcode・署名・ビルド成果物・Claude Code 認証・MCP | [開く](https://claude.ai/artifact/Xu6T46zjyfxDUZKq44aS83) |
+| [mac-setup.md](mac-setup.md) | 日々の道具の使い方（LLM 下処理・KB 検索・OCR・Remote Control・自動起動・常駐監視） | [開く](https://claude.ai/artifact/BG5zw9e2TpgDdwRU4NCV5f) |
